@@ -167,6 +167,8 @@ function cacheElements() {
   ui.goHuntBtn = document.getElementById("goHuntBtn");
   ui.backToHomeBtn = document.getElementById("backToHomeBtn");
   ui.backToSelectBtn = document.getElementById("backToSelectBtn");
+  ui.nextHuntBtn = document.getElementById("nextHuntBtn");
+  ui.exitHuntBtn = document.getElementById("exitHuntBtn");
   ui.treasureList = document.getElementById("treasureList");
   ui.collectBtn = document.getElementById("collectBtn");
   ui.fullscreenBtn = document.getElementById("fullscreenBtn");
@@ -204,6 +206,7 @@ function bindEvents() {
     setScreen("home");
   });
   ui.backToSelectBtn.addEventListener("click", () => {
+    stopGeoWatch();
     setScreen("select");
   });
 
@@ -215,6 +218,11 @@ function bindEvents() {
   });
 
   ui.collectBtn.addEventListener("click", collectTreasure);
+  ui.nextHuntBtn.addEventListener("click", startNextHunt);
+  ui.exitHuntBtn.addEventListener("click", () => {
+    stopGeoWatch();
+    setScreen("select");
+  });
 
   ui.closeModalBtn.addEventListener("click", () => {
     ui.successModal.classList.add("hidden");
@@ -434,6 +442,14 @@ function startGeoWatch() {
   );
 }
 
+function stopGeoWatch() {
+  if (state.watchId !== null) {
+    navigator.geolocation.clearWatch(state.watchId);
+    state.watchId = null;
+  }
+  setGpsStatus("GPS paused", "warning");
+}
+
 function handlePosition(position) {
   const { latitude, longitude, accuracy } = position.coords;
   state.userPosition = { lat: latitude, lng: longitude };
@@ -583,6 +599,25 @@ function collectTreasure() {
   if (navigator.vibrate) {
     navigator.vibrate([180, 100, 180]);
   }
+}
+
+function startNextHunt() {
+  const nextTreasure = TREASURES.find((treasure) => !state.collected.includes(treasure.id));
+  if (!nextTreasure) {
+    ui.proximityStatus.textContent = "All treasures collected - hunt complete!";
+    ui.proximityStatus.className = "status-pill success";
+    return;
+  }
+
+  state.selectedTreasureId = nextTreasure.id;
+  saveViewState();
+  renderTreasureSelection();
+  updateSelectedTreasureUI();
+  setScreen("hunt");
+  startGeoWatch();
+  state.lastRouteRequestAt = 0;
+  updateRouteHints(true);
+  updateDistanceAndDetection();
 }
 
 function playSuccessTone() {

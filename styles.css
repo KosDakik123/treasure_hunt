@@ -38,6 +38,22 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  gap: 0.8rem;
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.brand-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .brand {
@@ -169,6 +185,9 @@ body {
   background: transparent;
   color: var(--text);
   border: 1px solid rgba(255, 255, 255, 0.24);
+}
+.ghost-btn:hover {
+  filter: brightness(1.12);
 }
 
 .primary-btn:disabled {
@@ -302,6 +321,13 @@ body {
   gap: 0.5rem;
   margin-bottom: 0.8rem;
   flex-wrap: wrap;
+}
+
+.hunt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
 }
 
 .status-pill {

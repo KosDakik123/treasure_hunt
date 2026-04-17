@@ -12,7 +12,10 @@
 <body>
   <div class="app-shell">
     <header class="top-bar">
-      <h1 class="brand">Treasure Hunty Zagreb</h1>
+      <div class="brand-wrap">
+        <img src="assets/zagreb-logo.png" alt="Zagreb logo" class="brand-logo" />
+        <h1 class="brand">Treasure Hunty Zagreb</h1>
+      </div>
       <button id="fullscreenBtn" class="ghost-btn" type="button" aria-label="Toggle fullscreen">Fullscreen</button>
     </header>
 
@@ -98,6 +101,10 @@
             <span id="proximityStatus" class="status-pill">Not in range</span>
           </div>
           <button id="collectBtn" class="primary-btn" type="button" disabled>Collect Treasure</button>
+          <div class="hunt-actions">
+            <button id="nextHuntBtn" class="ghost-btn" type="button">Start Next Hunt</button>
+            <button id="exitHuntBtn" class="ghost-btn" type="button">Exit Hunt</button>
+          </div>
         </div>
 
         <div class="card compass-card">
