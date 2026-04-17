@@ -34,8 +34,12 @@
 
       <section id="selectScreen" class="screen">
         <div class="card">
-          <h2>Choose Your Treasure Target</h2>
+          <div class="section-head">
+            <button id="backToHomeBtn" class="icon-btn" type="button" aria-label="Back to home">←</button>
+            <h2>Choose Your Treasure Target</h2>
+          </div>
           <p class="muted">Pick one location to track in real time.</p>
+          <p id="remainingValue" class="muted">Remaining treasures: --</p>
           <div id="treasureList" class="treasure-list"></div>
           <button id="goHuntBtn" class="primary-btn" type="button" disabled>Begin Live Hunt</button>
         </div>
@@ -63,6 +67,10 @@
         </div>
 
         <div class="card info-card">
+          <div class="section-head">
+            <button id="backToSelectBtn" class="icon-btn" type="button" aria-label="Back to treasure list">←</button>
+            <h3>Live Hunt Info</h3>
+          </div>
           <div class="split">
             <div>
               <h3 id="selectedTreasureName">No treasure selected</h3>
@@ -81,6 +89,9 @@
             <p><span>Walk ETA</span><strong id="walkEta">--</strong></p>
             <p><span>Transit ETA</span><strong id="transitEta">--</strong></p>
             <p><span>Next Hint</span><strong id="nextHint">Waiting for route...</strong></p>
+          </div>
+          <div class="route-hints transport-tips">
+            <p><span>Tram / Bus Tips</span><strong id="transportTips">Select a treasure to see exact public transport hints.</strong></p>
           </div>
           <div class="status-row">
             <span id="gpsStatus" class="status-pill warning">GPS idle</span>

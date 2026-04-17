@@ -12,6 +12,7 @@
 
 const COLLECTION_RADIUS_METERS = 35;
 const STORAGE_KEY = "treasureHuntyProgressV1";
+const VIEW_STATE_KEY = "treasureHuntyViewStateV1";
 const ROUTE_REFRESH_MS = 20000;
 
 const TREASURES = [
@@ -25,6 +26,7 @@ const TREASURES = [
       "Ban Jelacic statue originally faced north, then was rotated in the 1990s.",
       "It has been a central city meeting point for over a century."
     ],
+    transportTips: "Tram 6 or 11 to Ban Jelacic Square stop. Most city center tram lines reach this area quickly.",
     points: 120
   },
   {
@@ -37,6 +39,7 @@ const TREASURES = [
       "The towers are one of the most recognizable symbols of Zagreb.",
       "Large restorations followed the 1880 earthquake."
     ],
+    transportTips: "Tram 6 or 11 to Kaptol, then short walk uphill to the Cathedral.",
     points: 140
   },
   {
@@ -49,6 +52,7 @@ const TREASURES = [
       "Its design mixes English-style park ideas with local landscapes.",
       "The park area is over 300 hectares."
     ],
+    transportTips: "Tram 4, 7, 11, or 12 to Maksimir stop. Walk 5-10 minutes to the park entrances.",
     points: 180
   },
   {
@@ -61,6 +65,7 @@ const TREASURES = [
       "Open-air concerts are often held at the central pavilion.",
       "Zrinjevac is known for old plane trees and seasonal festivals."
     ],
+    transportTips: "Tram 2, 4, 6, 9, 11, or 13 to Zrinjevac area (main station side), then walk into the square.",
     points: 110
   },
   {
@@ -73,6 +78,7 @@ const TREASURES = [
       "Stone Gate is the only preserved old city gate.",
       "The area includes St. Mark's Church with its famous tiled roof."
     ],
+    transportTips: "Take tram to Ban Jelacic Square, then walk uphill through Radiceva street to Upper Town.",
     points: 160
   },
   {
@@ -85,6 +91,7 @@ const TREASURES = [
       "Fresh produce, flowers, and cheese are sold daily here.",
       "The market opened in 1930."
     ],
+    transportTips: "Any tram to Ban Jelacic Square then 2 minutes on foot to Dolac stairs.",
     points: 125
   },
   {
@@ -97,6 +104,7 @@ const TREASURES = [
       "It survived city fires that destroyed many nearby structures.",
       "Many residents pass through to light candles."
     ],
+    transportTips: "Tram to Ban Jelacic Square and walk through Tkalciceva toward Kamenita vrata.",
     points: 150
   },
   {
@@ -109,6 +117,7 @@ const TREASURES = [
       "It is a favorite sunset viewpoint in the city center.",
       "Street art and murals often appear nearby."
     ],
+    transportTips: "Tram to Ilica or Ban Jelacic Square, then walk up to Strossmayer promenade.",
     points: 130
   },
   {
@@ -121,6 +130,7 @@ const TREASURES = [
       "The area was developed for the 1987 Universiade games.",
       "It is popular for cycling, rowing, and running."
     ],
+    transportTips: "Tram 5 or 17 toward Precko/Jarun plus local bus connection, depending on your start.",
     points: 200
   }
 ];
@@ -141,7 +151,8 @@ const state = {
   headingDegrees: null,
   orientationMode: "fallback",
   selectedCardElement: null,
-  lastRouteRequestAt: 0
+  lastRouteRequestAt: 0,
+  activeScreen: "home"
 };
 
 const ui = {};
@@ -154,6 +165,8 @@ function cacheElements() {
   };
   ui.startBtn = document.getElementById("startBtn");
   ui.goHuntBtn = document.getElementById("goHuntBtn");
+  ui.backToHomeBtn = document.getElementById("backToHomeBtn");
+  ui.backToSelectBtn = document.getElementById("backToSelectBtn");
   ui.treasureList = document.getElementById("treasureList");
   ui.collectBtn = document.getElementById("collectBtn");
   ui.fullscreenBtn = document.getElementById("fullscreenBtn");
@@ -170,10 +183,12 @@ function cacheElements() {
   ui.walkEta = document.getElementById("walkEta");
   ui.transitEta = document.getElementById("transitEta");
   ui.nextHint = document.getElementById("nextHint");
+  ui.transportTips = document.getElementById("transportTips");
   ui.mapHint = document.getElementById("mapHint");
   ui.scoreValue = document.getElementById("scoreValue");
   ui.collectedValue = document.getElementById("collectedValue");
   ui.progressValue = document.getElementById("progressValue");
+  ui.remainingValue = document.getElementById("remainingValue");
   ui.compassNeedle = document.getElementById("compassNeedle");
   ui.compassMode = document.getElementById("compassMode");
   ui.successModal = document.getElementById("successModal");
@@ -183,6 +198,12 @@ function cacheElements() {
 
 function bindEvents() {
   ui.startBtn.addEventListener("click", () => {
+    setScreen("select");
+  });
+  ui.backToHomeBtn.addEventListener("click", () => {
+    setScreen("home");
+  });
+  ui.backToSelectBtn.addEventListener("click", () => {
     setScreen("select");
   });
 
@@ -212,6 +233,8 @@ function bindEvents() {
 function setScreen(target) {
   Object.values(ui.screens).forEach((screen) => screen.classList.remove("active"));
   ui.screens[target].classList.add("active");
+  state.activeScreen = target;
+  saveViewState();
 }
 
 function loadProgress() {
@@ -226,6 +249,22 @@ function loadProgress() {
   }
 }
 
+function loadViewState() {
+  const raw = localStorage.getItem(VIEW_STATE_KEY);
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.selectedTreasureId) {
+      state.selectedTreasureId = parsed.selectedTreasureId;
+    }
+    if (parsed.activeScreen) {
+      state.activeScreen = parsed.activeScreen;
+    }
+  } catch (_err) {
+    console.warn("Could not parse view state from localStorage.");
+  }
+}
+
 function saveProgress() {
   // Save score and collected treasure IDs so the game progress survives refresh/device restarts.
   const payload = {
@@ -233,6 +272,13 @@ function saveProgress() {
     collected: state.collected
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+function saveViewState() {
+  localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({
+    selectedTreasureId: state.selectedTreasureId,
+    activeScreen: state.activeScreen
+  }));
 }
 
 function renderTreasureSelection() {
@@ -257,8 +303,16 @@ function renderTreasureSelection() {
       state.selectedCardElement = card;
       selectTreasure(treasure.id);
     });
+    if (state.selectedTreasureId === treasure.id) {
+      state.selectedCardElement = card;
+      card.classList.add("active");
+    }
     ui.treasureList.appendChild(card);
   });
+  updateRemainingUI();
+  if (state.selectedTreasureId) {
+    ui.goHuntBtn.disabled = false;
+  }
 }
 
 function selectTreasure(treasureId) {
@@ -266,6 +320,7 @@ function selectTreasure(treasureId) {
   [...ui.treasureList.children].forEach((node) => node.classList.remove("active"));
   state.selectedCardElement?.classList.add("active");
   ui.goHuntBtn.disabled = false;
+  saveViewState();
 }
 
 function getTreasureById(id) {
@@ -278,6 +333,7 @@ function updateSelectedTreasureUI() {
   ui.selectedTreasureName.textContent = treasure.name;
   ui.selectedTreasureDesc.textContent = treasure.description;
   ui.funFact.textContent = `Fun facts: ${treasure.funFacts.join(" | ")}`;
+  ui.transportTips.textContent = treasure.transportTips;
 }
 
 function updateScoreUI() {
@@ -285,6 +341,12 @@ function updateScoreUI() {
   ui.collectedValue.textContent = `${state.collected.length}/${TREASURES.length}`;
   const pct = Math.round((state.collected.length / TREASURES.length) * 100);
   ui.progressValue.textContent = `${pct}%`;
+  updateRemainingUI();
+}
+
+function updateRemainingUI() {
+  const remaining = TREASURES.length - state.collected.length;
+  ui.remainingValue.textContent = `Remaining treasures: ${remaining}`;
 }
 
 function setGpsStatus(text, type = "warning") {
@@ -347,6 +409,7 @@ function initMap() {
 }
 
 function startGeoWatch() {
+  if (state.watchId !== null) return;
   if (!("geolocation" in navigator)) {
     setGpsStatus("Geolocation unsupported on this browser.", "danger");
     ui.mapHint.textContent = "Your browser cannot provide GPS position.";
@@ -494,6 +557,7 @@ function collectTreasure() {
   state.collected.push(target.id);
   state.score += target.points;
   saveProgress();
+  saveViewState();
   updateScoreUI();
   renderTreasureSelection();
 
@@ -697,6 +761,7 @@ function primeCollectedMarkers() {
 window.initTreasureApp = function initTreasureApp() {
   cacheElements();
   loadProgress();
+  loadViewState();
   bindEvents();
   updateScoreUI();
   renderTreasureSelection();
@@ -704,4 +769,11 @@ window.initTreasureApp = function initTreasureApp() {
   initMap();
   primeCollectedMarkers();
   registerServiceWorker();
+  if (state.selectedTreasureId) {
+    updateSelectedTreasureUI();
+  }
+  setScreen(state.activeScreen);
+  if (state.activeScreen === "hunt" && state.selectedTreasureId) {
+    startGeoWatch();
+  }
 };

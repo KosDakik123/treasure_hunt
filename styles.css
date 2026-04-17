@@ -18,7 +18,11 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Roboto, system-ui, sans-serif;
-  background: radial-gradient(circle at top, #1a2852, var(--bg) 55%);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 0, 43, 0.22), transparent 35%),
+    radial-gradient(circle at 80% 8%, rgba(255, 255, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 50% 100%, rgba(6, 43, 124, 0.5), transparent 48%),
+    radial-gradient(circle at top, #1a2852, var(--bg) 55%);
   color: var(--text);
   min-height: 100vh;
 }
@@ -83,6 +87,33 @@ body {
 .card {
   padding: 1rem;
   margin-bottom: 0.9rem;
+  animation: card-float 360ms ease;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.section-head h2,
+.section-head h3 {
+  margin: 0;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  filter: brightness(1.1);
 }
 
 .pill,
@@ -305,27 +336,24 @@ body {
   margin: 0.7rem auto;
   width: min(68vw, 255px);
   aspect-ratio: 1 / 1;
-  border-radius: 18px;
-  background:
-    linear-gradient(45deg, rgba(53, 77, 131, 0.65) 25%, transparent 25%) 0 0 / 20px 20px,
-    linear-gradient(-45deg, rgba(53, 77, 131, 0.65) 25%, transparent 25%) 0 0 / 20px 20px,
-    linear-gradient(45deg, transparent 75%, rgba(53, 77, 131, 0.65) 75%) 0 0 / 20px 20px,
-    linear-gradient(-45deg, transparent 75%, rgba(53, 77, 131, 0.65) 75%) 0 0 / 20px 20px,
-    #1b2850;
-  border: 3px solid #7da7ff;
-  box-shadow: inset 0 0 0 4px #111e42, 0 0 24px rgba(68, 242, 178, 0.25);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #2f3135 0 45%, #6d7078 45% 54%, #2e3034 54% 100%);
+  border: 8px solid #111316;
+  box-shadow: inset 0 0 0 8px #262930, 0 0 24px rgba(68, 242, 178, 0.25);
+  image-rendering: pixelated;
 }
 
 .compass-needle {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 8px;
+  width: 12px;
   height: 38%;
   transform: translate(-50%, -100%) rotate(0deg);
   transform-origin: 50% 100%;
-  background: linear-gradient(to top, #d8ecff 40%, #ff505a);
-  border-radius: 6px;
+  background: linear-gradient(to top, #f8f9ff 45%, #ff2f39);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #24252a;
   transition: transform 260ms ease;
 }
 
@@ -371,6 +399,10 @@ body {
   animation: zoom-in 260ms ease;
 }
 
+.transport-tips strong {
+  color: #cce4ff;
+}
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -379,6 +411,11 @@ body {
 @keyframes zoom-in {
   from { opacity: 0; transform: scale(0.87); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes card-float {
+  from { transform: translateY(6px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @media (min-width: 760px) {
