@@ -24,6 +24,10 @@
           <p>
             Walk around Zagreb, follow your compass, and collect legendary points at iconic locations.
           </p>
+          <div class="notice-card">
+            <p><strong>Instructions:</strong> Walk around the city observing the things around you and follow in-app route hints.</p>
+            <p><strong>Disclaimer:</strong> During the hunt, use only this web app for navigation and clues.</p>
+          </div>
           <button id="startBtn" class="primary-btn huge-btn" type="button">Start Hunt</button>
         </div>
       </section>
@@ -73,6 +77,11 @@
             <p><span>Accuracy</span><strong id="accValue">--</strong></p>
             <p><span>Bearing</span><strong id="bearingValue">--</strong></p>
           </div>
+          <div class="route-hints">
+            <p><span>Walk ETA</span><strong id="walkEta">--</strong></p>
+            <p><span>Transit ETA</span><strong id="transitEta">--</strong></p>
+            <p><span>Next Hint</span><strong id="nextHint">Waiting for route...</strong></p>
+          </div>
           <div class="status-row">
             <span id="gpsStatus" class="status-pill warning">GPS idle</span>
             <span id="proximityStatus" class="status-pill">Not in range</span>
@@ -104,8 +113,9 @@
     </div>
   </div>
 
+  <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key -->
   <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCB_UL_-JPBN5Eul4aChJPcom35o1pQCIw&callback=initTreasureApp"
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initTreasureApp"
     async
     defer
   ></script>

@@ -12,6 +12,7 @@
 
 const COLLECTION_RADIUS_METERS = 35;
 const STORAGE_KEY = "treasureHuntyProgressV1";
+const ROUTE_REFRESH_MS = 20000;
 
 const TREASURES = [
   {
@@ -19,7 +20,11 @@ const TREASURES = [
     name: "Ban Jelacic Square",
     coords: { lat: 45.8131, lng: 15.9775 },
     description: "The energetic heart of Zagreb with trams, events, and city life.",
-    funFact: "The square is named after Ban Josip Jelacic, a Croatian national hero.",
+    funFacts: [
+      "The square is named after Ban Josip Jelacic, a Croatian national hero.",
+      "Ban Jelacic statue originally faced north, then was rotated in the 1990s.",
+      "It has been a central city meeting point for over a century."
+    ],
     points: 120
   },
   {
@@ -27,7 +32,11 @@ const TREASURES = [
     name: "Zagreb Cathedral",
     coords: { lat: 45.8145, lng: 15.9799 },
     description: "A neo-gothic landmark with iconic twin towers over the old city.",
-    funFact: "Its history goes back to the 11th century and it survived major earthquakes.",
+    funFacts: [
+      "Its history goes back to the 11th century and it survived major earthquakes.",
+      "The towers are one of the most recognizable symbols of Zagreb.",
+      "Large restorations followed the 1880 earthquake."
+    ],
     points: 140
   },
   {
@@ -35,7 +44,11 @@ const TREASURES = [
     name: "Maksimir Park",
     coords: { lat: 45.8246, lng: 16.0186 },
     description: "A huge green oasis with lakes, trails, and classic park architecture.",
-    funFact: "Maksimir is one of the oldest public parks in Southeast Europe.",
+    funFacts: [
+      "Maksimir is one of the oldest public parks in Southeast Europe.",
+      "Its design mixes English-style park ideas with local landscapes.",
+      "The park area is over 300 hectares."
+    ],
     points: 180
   },
   {
@@ -43,7 +56,11 @@ const TREASURES = [
     name: "Zrinjevac",
     coords: { lat: 45.8099, lng: 15.9818 },
     description: "A beautiful park square famous for its music pavilion and trees.",
-    funFact: "It is part of the Lenuci Horseshoe, a famous urban planning project.",
+    funFacts: [
+      "It is part of the Lenuci Horseshoe urban project.",
+      "Open-air concerts are often held at the central pavilion.",
+      "Zrinjevac is known for old plane trees and seasonal festivals."
+    ],
     points: 110
   },
   {
@@ -51,8 +68,60 @@ const TREASURES = [
     name: "Upper Town / Gornji Grad",
     coords: { lat: 45.8162, lng: 15.9734 },
     description: "Historic hill district with cobblestone streets and panoramic viewpoints.",
-    funFact: "The Lotrscak Tower still fires a cannon every day at noon.",
+    funFacts: [
+      "The Lotrscak Tower still fires a cannon every day at noon.",
+      "Stone Gate is the only preserved old city gate.",
+      "The area includes St. Mark's Church with its famous tiled roof."
+    ],
     points: 160
+  },
+  {
+    id: "dolac",
+    name: "Dolac Market",
+    coords: { lat: 45.8142, lng: 15.9782 },
+    description: "The citys iconic farmers market, known for red umbrellas.",
+    funFacts: [
+      "Locals call it the belly of Zagreb.",
+      "Fresh produce, flowers, and cheese are sold daily here.",
+      "The market opened in 1930."
+    ],
+    points: 125
+  },
+  {
+    id: "stone-gate",
+    name: "Stone Gate",
+    coords: { lat: 45.8168, lng: 15.9748 },
+    description: "A historic gate and chapel connecting old streets.",
+    funFacts: [
+      "Stone Gate contains a shrine to the Virgin Mary.",
+      "It survived city fires that destroyed many nearby structures.",
+      "Many residents pass through to light candles."
+    ],
+    points: 150
+  },
+  {
+    id: "strossmayer",
+    name: "Strossmayer Promenade",
+    coords: { lat: 45.8148, lng: 15.9735 },
+    description: "A scenic walkway with sweeping views over Zagreb.",
+    funFacts: [
+      "In summer it hosts small cultural events and performances.",
+      "It is a favorite sunset viewpoint in the city center.",
+      "Street art and murals often appear nearby."
+    ],
+    points: 130
+  },
+  {
+    id: "jarun",
+    name: "Jarun Lake",
+    coords: { lat: 45.7839, lng: 15.9264 },
+    description: "A sports and recreation zone with lakes and paths.",
+    funFacts: [
+      "Jarun is often called the Zagreb sea.",
+      "The area was developed for the 1987 Universiade games.",
+      "It is popular for cycling, rowing, and running."
+    ],
+    points: 200
   }
 ];
 
@@ -60,7 +129,8 @@ const state = {
   map: null,
   userMarker: null,
   treasureMarkers: new Map(),
-  guideLine: null,
+  directionsService: null,
+  directionsRenderer: null,
   watchId: null,
   selectedTreasureId: null,
   userPosition: null,
@@ -70,7 +140,8 @@ const state = {
   lastDistanceMeters: null,
   headingDegrees: null,
   orientationMode: "fallback",
-  selectedCardElement: null
+  selectedCardElement: null,
+  lastRouteRequestAt: 0
 };
 
 const ui = {};
@@ -96,6 +167,9 @@ function cacheElements() {
   ui.lngValue = document.getElementById("lngValue");
   ui.accValue = document.getElementById("accValue");
   ui.bearingValue = document.getElementById("bearingValue");
+  ui.walkEta = document.getElementById("walkEta");
+  ui.transitEta = document.getElementById("transitEta");
+  ui.nextHint = document.getElementById("nextHint");
   ui.mapHint = document.getElementById("mapHint");
   ui.scoreValue = document.getElementById("scoreValue");
   ui.collectedValue = document.getElementById("collectedValue");
@@ -129,7 +203,7 @@ function bindEvents() {
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && state.userPosition) {
-      updateGuideLine();
+      updateRouteHints(true);
       updateCompass();
     }
   });
@@ -176,6 +250,7 @@ function renderTreasureSelection() {
     card.innerHTML = `
       <strong>${treasure.name}</strong>
       <p class="muted">${treasure.description}</p>
+      <p class="muted">Fun facts: ${treasure.funFacts.length}</p>
       <p class="muted">Reward: ${treasure.points} points</p>
     `;
     card.addEventListener("click", () => {
@@ -202,7 +277,7 @@ function updateSelectedTreasureUI() {
   if (!treasure) return;
   ui.selectedTreasureName.textContent = treasure.name;
   ui.selectedTreasureDesc.textContent = treasure.description;
-  ui.funFact.textContent = `Fun fact: ${treasure.funFact}`;
+  ui.funFact.textContent = `Fun facts: ${treasure.funFacts.join(" | ")}`;
 }
 
 function updateScoreUI() {
@@ -237,6 +312,18 @@ function initMap() {
     mapTypeControl: false,
     streetViewControl: false,
     fullscreenControl: false
+  });
+
+  // Route rendering uses real roads/paths from Google Directions, not a straight line.
+  state.directionsService = new google.maps.DirectionsService();
+  state.directionsRenderer = new google.maps.DirectionsRenderer({
+    map: state.map,
+    suppressMarkers: true,
+    polylineOptions: {
+      strokeColor: "#7fffd4",
+      strokeOpacity: 0.9,
+      strokeWeight: 5
+    }
   });
 
   TREASURES.forEach((treasure) => {
@@ -304,7 +391,7 @@ function handlePosition(position) {
   }
 
   updateDistanceAndDetection();
-  updateGuideLine();
+  updateRouteHints();
   updateCompass();
 }
 
@@ -328,23 +415,43 @@ function upsertUserMarker() {
   state.userMarker.setPosition(state.userPosition);
 }
 
-function updateGuideLine() {
+function updateRouteHints(force = false) {
   const target = getTreasureById(state.selectedTreasureId);
   if (!state.mapReady || !state.userPosition || !target) return;
+  if (!force && Date.now() - state.lastRouteRequestAt < ROUTE_REFRESH_MS) return;
+  state.lastRouteRequestAt = Date.now();
+  requestRoute(target.coords, "WALKING");
+  requestRoute(target.coords, "TRANSIT");
+}
 
-  const path = [state.userPosition, target.coords];
-  if (!state.guideLine) {
-    state.guideLine = new google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: "#7fffd4",
-      strokeOpacity: 0.9,
-      strokeWeight: 4,
-      map: state.map
-    });
-  } else {
-    state.guideLine.setPath(path);
-  }
+function requestRoute(destination, mode) {
+  state.directionsService.route(
+    {
+      origin: state.userPosition,
+      destination,
+      travelMode: google.maps.TravelMode[mode]
+    },
+    (result, status) => {
+      if (status !== "OK" || !result?.routes?.length) {
+        if (mode === "WALKING") {
+          ui.walkEta.textContent = "Route unavailable";
+          ui.nextHint.textContent = "No walking route right now.";
+        } else {
+          ui.transitEta.textContent = "Transit unavailable";
+        }
+        return;
+      }
+      const leg = result.routes[0].legs[0];
+      if (mode === "WALKING") {
+        state.directionsRenderer.setDirections(result);
+        ui.walkEta.textContent = `${leg.duration?.text ?? "--"} (${leg.distance?.text ?? "--"})`;
+        const nextStep = leg.steps?.[0]?.instructions ?? "Follow the highlighted route.";
+        ui.nextHint.textContent = stripHtml(nextStep);
+      } else {
+        ui.transitEta.textContent = `${leg.duration?.text ?? "--"} (${leg.distance?.text ?? "--"})`;
+      }
+    }
+  );
 }
 
 function updateDistanceAndDetection() {
@@ -371,6 +478,12 @@ function updateDistanceAndDetection() {
       ui.collectBtn.disabled = true;
     }
   }
+}
+
+function stripHtml(value) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = value;
+  return tmp.textContent || tmp.innerText || "";
 }
 
 function collectTreasure() {
