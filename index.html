@@ -28,7 +28,7 @@
             Walk around Zagreb, follow your compass, and collect legendary points at iconic locations.
           </p>
           <div class="notice-card">
-            <p><strong>Instructions:</strong> Walk around the city observing the things around you and follow in-app route hints.</p>
+            <p><strong>Instructions:</strong> Walk around the city observing the things around you and follow in-app route hints. On the way to each checkpoint, save 1-3 photos, then complete the quick match quiz before collecting.</p>
             <p><strong>Disclaimer:</strong> During the hunt, use only this web app for navigation and clues.</p>
           </div>
           <button id="startBtn" class="primary-btn huge-btn" type="button">Start Hunt</button>
@@ -96,6 +96,18 @@
           <div class="route-hints transport-tips">
             <p><span>Tram / Bus Tips</span><strong id="transportTips">Select a treasure to see exact public transport hints.</strong></p>
           </div>
+          <div class="memory-card">
+            <h4 class="memory-title">Memory photos (1-3)</h4>
+            <p class="muted memory-lead">Take 1 to 3 photos on your way—architecture, street life, or anything that catches your eye.</p>
+            <label class="memory-upload">
+              <input id="memoryPhotoInput" type="file" accept="image/*" capture="environment" multiple />
+              <span>Add photos</span>
+            </label>
+            <div id="memoryPhotoStrip" class="memory-strip" aria-live="polite"></div>
+            <p id="memoryPhotoStatus" class="muted memory-status">0 / 3 photos — need at least 1</p>
+          </div>
+          <button id="openQuizBtn" class="secondary-btn" type="button" disabled>Open checkpoint quiz</button>
+          <p id="checkpointHint" class="muted checkpoint-hint">At the checkpoint: finish the quiz, then collect when you are close enough.</p>
           <div class="status-row">
             <span id="gpsStatus" class="status-pill warning">GPS idle</span>
             <span id="proximityStatus" class="status-pill">Not in range</span>
@@ -121,6 +133,26 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="quizModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="quizModalTitle">
+    <div class="modal-card quiz-modal-card">
+      <h3 id="quizModalTitle">Checkpoint quiz</h3>
+      <p id="quizModalSubtitle" class="muted quiz-subtitle"></p>
+      <p class="quiz-instructions">Tap a clue on the left, then its matching fact on the right.</p>
+      <div class="match-game">
+        <div class="match-column">
+          <span class="match-label">Clues</span>
+          <div id="quizClues" class="match-stack"></div>
+        </div>
+        <div class="match-column">
+          <span class="match-label">Matches</span>
+          <div id="quizMatches" class="match-stack"></div>
+        </div>
+      </div>
+      <p id="quizFeedback" class="quiz-feedback" aria-live="polite"></p>
+      <button id="closeQuizBtn" type="button" class="ghost-btn quiz-close">Close</button>
+    </div>
   </div>
 
   <div id="successModal" class="modal hidden" role="dialog" aria-modal="true">

@@ -1,4 +1,4 @@
-const CACHE_NAME = "treasure-hunty-v1";
+const CACHE_NAME = "treasure-hunty-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,7 +6,8 @@ const ASSETS = [
   "./app.js",
   "./manifest.json",
   "./assets/icon-192.svg",
-  "./assets/icon-512.svg"
+  "./assets/icon-512.svg",
+  "./assets/zagreb-logo.png"
 ];
 
 self.addEventListener("install", (event) => {

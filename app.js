@@ -1,16 +1,21 @@
 "use strict";
 
-/*
-  Treasure Hunty Zagreb
-  Core systems:
-  - Google Maps setup and map markers
-  - Real-time GPS tracking via Geolocation watchPosition
-  - Compass logic with device orientation + fallback bearing
-  - Treasure detection radius and collection flow
-  - localStorage persistence for score and collected treasures
-*/
+/**
+ * @fileoverview Treasure Hunty Zagreb — client-side GPS treasure hunt.
+ *
+ * What this file does (high level):
+ * - Boots the map, tracks the player with watchPosition, and renders routes.
+ * - Gates collection behind photos + a tiny “match the facts” quiz (checkpoint).
+ * - Persists score and UI state in localStorage (same device / browser profile).
+ *
+ * Note for classmates: keep functions small and name them after what they *do*.
+ * If you refactor, run through the hunt once on a real phone before demo day.
+ */
 
 const COLLECTION_RADIUS_METERS = 35;
+/** How many “memory” photos players must take on the way (inclusive range). */
+const MIN_MEMORY_PHOTOS = 1;
+const MAX_MEMORY_PHOTOS = 3;
 const STORAGE_KEY = "treasureHuntyProgressV1";
 const VIEW_STATE_KEY = "treasureHuntyViewStateV1";
 const ROUTE_REFRESH_MS = 20000;
@@ -27,6 +32,10 @@ const TREASURES = [
       "It has been a central city meeting point for over a century."
     ],
     transportTips: "Tram 6 or 11 to Ban Jelacic Square stop. Most city center tram lines reach this area quickly.",
+    miniGamePairs: [
+      { id: "a", clue: "The equestrian statue honors", match: "Ban Josip Jelacic" },
+      { id: "b", clue: "This square is the city’s main hub for", match: "trams, events, and meetings" }
+    ],
     points: 120
   },
   {
@@ -40,6 +49,10 @@ const TREASURES = [
       "Large restorations followed the 1880 earthquake."
     ],
     transportTips: "Tram 6 or 11 to Kaptol, then short walk uphill to the Cathedral.",
+    miniGamePairs: [
+      { id: "a", clue: "The cathedral’s style is often called", match: "neo-gothic" },
+      { id: "b", clue: "A major 19th-century earthquake that hit Zagreb", match: "1880" }
+    ],
     points: 140
   },
   {
@@ -53,6 +66,10 @@ const TREASURES = [
       "The park area is over 300 hectares."
     ],
     transportTips: "Tram 4, 7, 11, or 12 to Maksimir stop. Walk 5-10 minutes to the park entrances.",
+    miniGamePairs: [
+      { id: "a", clue: "Maksimir is especially known as a historic", match: "public park" },
+      { id: "b", clue: "The park landscape blends local nature with", match: "English-style ideas" }
+    ],
     points: 180
   },
   {
@@ -66,6 +83,10 @@ const TREASURES = [
       "Zrinjevac is known for old plane trees and seasonal festivals."
     ],
     transportTips: "Tram 2, 4, 6, 9, 11, or 13 to Zrinjevac area (main station side), then walk into the square.",
+    miniGamePairs: [
+      { id: "a", clue: "Zrinjevac is part of Zagreb’s famous", match: "Lenuci Horseshoe" },
+      { id: "b", clue: "A classic feature in the middle of the square", match: "music pavilion" }
+    ],
     points: 110
   },
   {
@@ -79,6 +100,10 @@ const TREASURES = [
       "The area includes St. Mark's Church with its famous tiled roof."
     ],
     transportTips: "Take tram to Ban Jelacic Square, then walk uphill through Radiceva street to Upper Town.",
+    miniGamePairs: [
+      { id: "a", clue: "Lotrscak Tower is famous for the daily", match: "noon cannon" },
+      { id: "b", clue: "St. Mark's Church is known for its colorful", match: "tiled roof" }
+    ],
     points: 160
   },
   {
@@ -92,6 +117,10 @@ const TREASURES = [
       "The market opened in 1930."
     ],
     transportTips: "Any tram to Ban Jelacic Square then 2 minutes on foot to Dolac stairs.",
+    miniGamePairs: [
+      { id: "a", clue: "Dolac is nicknamed the city’s", match: "belly" },
+      { id: "b", clue: "Shoppers often notice rows of bright", match: "red umbrellas" }
+    ],
     points: 125
   },
   {
@@ -105,6 +134,10 @@ const TREASURES = [
       "Many residents pass through to light candles."
     ],
     transportTips: "Tram to Ban Jelacic Square and walk through Tkalciceva toward Kamenita vrata.",
+    miniGamePairs: [
+      { id: "a", clue: "Inside Stone Gate you’ll find a shrine to", match: "the Virgin Mary" },
+      { id: "b", clue: "Locals often stop to light", match: "candles" }
+    ],
     points: 150
   },
   {
@@ -118,20 +151,11 @@ const TREASURES = [
       "Street art and murals often appear nearby."
     ],
     transportTips: "Tram to Ilica or Ban Jelacic Square, then walk up to Strossmayer promenade.",
-    points: 130
-  },
-  {
-    id: "jarun",
-    name: "Jarun Lake",
-    coords: { lat: 45.7839, lng: 15.9264 },
-    description: "A sports and recreation zone with lakes and paths.",
-    funFacts: [
-      "Jarun is often called the Zagreb sea.",
-      "The area was developed for the 1987 Universiade games.",
-      "It is popular for cycling, rowing, and running."
+    miniGamePairs: [
+      { id: "a", clue: "Strossmayer is a classic", match: "promenade with views" },
+      { id: "b", clue: "Summer evenings may bring small", match: "outdoor performances" }
     ],
-    transportTips: "Tram 5 or 17 toward Precko/Jarun plus local bus connection, depending on your start.",
-    points: 200
+    points: 130
   }
 ];
 
@@ -152,7 +176,13 @@ const state = {
   orientationMode: "fallback",
   selectedCardElement: null,
   lastRouteRequestAt: 0,
-  activeScreen: "home"
+  activeScreen: "home",
+  /** In-memory photo previews for the current leg (revoked on reset). */
+  memoryPhotos: [],
+  /** Player must finish the match game before collecting. */
+  checkpointQuizPassed: false,
+  /** Quiz UI: which clue card is waiting for a match. */
+  quizActiveClueId: null
 };
 
 const ui = {};
@@ -196,6 +226,16 @@ function cacheElements() {
   ui.successModal = document.getElementById("successModal");
   ui.successText = document.getElementById("successText");
   ui.closeModalBtn = document.getElementById("closeModalBtn");
+  ui.memoryPhotoInput = document.getElementById("memoryPhotoInput");
+  ui.memoryPhotoStrip = document.getElementById("memoryPhotoStrip");
+  ui.memoryPhotoStatus = document.getElementById("memoryPhotoStatus");
+  ui.openQuizBtn = document.getElementById("openQuizBtn");
+  ui.quizModal = document.getElementById("quizModal");
+  ui.quizModalSubtitle = document.getElementById("quizModalSubtitle");
+  ui.quizClues = document.getElementById("quizClues");
+  ui.quizMatches = document.getElementById("quizMatches");
+  ui.quizFeedback = document.getElementById("quizFeedback");
+  ui.closeQuizBtn = document.getElementById("closeQuizBtn");
 }
 
 function bindEvents() {
@@ -212,6 +252,7 @@ function bindEvents() {
 
   ui.goHuntBtn.addEventListener("click", () => {
     if (!state.selectedTreasureId) return;
+    resetCheckpointState();
     setScreen("hunt");
     updateSelectedTreasureUI();
     startGeoWatch();
@@ -222,6 +263,12 @@ function bindEvents() {
   ui.exitHuntBtn.addEventListener("click", () => {
     stopGeoWatch();
     setScreen("select");
+  });
+
+  ui.memoryPhotoInput.addEventListener("change", onMemoryPhotosPicked);
+  ui.openQuizBtn.addEventListener("click", openCheckpointQuiz);
+  ui.closeQuizBtn.addEventListener("click", () => {
+    ui.quizModal.classList.add("hidden");
   });
 
   ui.closeModalBtn.addEventListener("click", () => {
@@ -289,6 +336,80 @@ function saveViewState() {
   }));
 }
 
+/**
+ * Clears photo previews and quiz progress when the player switches targets.
+ * We revoke object URLs so the browser can free memory (good habit on mobile).
+ */
+function resetCheckpointState() {
+  state.memoryPhotos.forEach((entry) => URL.revokeObjectURL(entry.url));
+  state.memoryPhotos = [];
+  state.checkpointQuizPassed = false;
+  state.quizActiveClueId = null;
+  if (ui.memoryPhotoInput) ui.memoryPhotoInput.value = "";
+  if (ui.memoryPhotoStrip) ui.memoryPhotoStrip.innerHTML = "";
+  updateMemoryStatus();
+  updateCollectAvailability();
+  if (ui.openQuizBtn) ui.openQuizBtn.disabled = true;
+}
+
+function onMemoryPhotosPicked(event) {
+  const files = Array.from(event.target.files || []).filter((f) => f.type.startsWith("image/"));
+  if (!files.length) return;
+
+  // Add up to MAX_MEMORY_PHOTOS total; extra picks are ignored (keeps the UX forgiving).
+  for (const file of files) {
+    if (state.memoryPhotos.length >= MAX_MEMORY_PHOTOS) break;
+    state.memoryPhotos.push({
+      url: URL.createObjectURL(file),
+      name: file.name
+    });
+  }
+
+  renderMemoryStrip();
+  updateMemoryStatus();
+  updateCollectAvailability();
+  event.target.value = "";
+}
+
+function renderMemoryStrip() {
+  ui.memoryPhotoStrip.innerHTML = "";
+  state.memoryPhotos.forEach((entry, index) => {
+    const img = document.createElement("img");
+    img.src = entry.url;
+    img.alt = `Memory photo ${index + 1}`;
+    img.className = "memory-thumb";
+    ui.memoryPhotoStrip.appendChild(img);
+  });
+}
+
+function updateMemoryStatus() {
+  const n = state.memoryPhotos.length;
+  ui.memoryPhotoStatus.textContent = `${n} / ${MAX_MEMORY_PHOTOS} photos — need ${MIN_MEMORY_PHOTOS}-${MAX_MEMORY_PHOTOS} on the way`;
+  const ok = n >= MIN_MEMORY_PHOTOS && n <= MAX_MEMORY_PHOTOS;
+  ui.openQuizBtn.disabled = !ok;
+}
+
+/**
+ * Central gate for the Collect button: GPS radius + photos + quiz.
+ * Calling this from one place avoids half-enabled states (less confusing for players).
+ */
+function updateCollectAvailability() {
+  const target = getTreasureById(state.selectedTreasureId);
+  if (!target || state.collected.includes(target.id)) {
+    ui.collectBtn.disabled = true;
+    return;
+  }
+
+  const inRange =
+    state.lastDistanceMeters !== null && state.lastDistanceMeters <= COLLECTION_RADIUS_METERS;
+  const photosOk =
+    state.memoryPhotos.length >= MIN_MEMORY_PHOTOS &&
+    state.memoryPhotos.length <= MAX_MEMORY_PHOTOS;
+  const quizOk = state.checkpointQuizPassed;
+
+  ui.collectBtn.disabled = !(inRange && photosOk && quizOk);
+}
+
 function renderTreasureSelection() {
   ui.treasureList.innerHTML = "";
   state.selectedCardElement = null;
@@ -324,6 +445,9 @@ function renderTreasureSelection() {
 }
 
 function selectTreasure(treasureId) {
+  if (state.selectedTreasureId !== treasureId) {
+    resetCheckpointState();
+  }
   state.selectedTreasureId = treasureId;
   [...ui.treasureList.children].forEach((node) => node.classList.remove("active"));
   state.selectedCardElement?.classList.add("active");
@@ -544,19 +668,15 @@ function updateDistanceAndDetection() {
   const bearing = calculateBearing(state.userPosition, target.coords);
   ui.bearingValue.textContent = `${Math.round(bearing)}°`;
 
-  // Treasure unlock logic: when inside configurable radius, collection is enabled.
   if (distanceMeters <= COLLECTION_RADIUS_METERS) {
-    ui.collectBtn.disabled = false;
     ui.proximityStatus.textContent = "Within treasure radius";
     ui.proximityStatus.className = "status-pill success";
   } else {
-    ui.collectBtn.disabled = false;
     ui.proximityStatus.textContent = `Move closer (need <= ${COLLECTION_RADIUS_METERS} m)`;
     ui.proximityStatus.className = "status-pill";
-    if (!state.collected.includes(target.id)) {
-      ui.collectBtn.disabled = true;
-    }
   }
+
+  updateCollectAvailability();
 }
 
 function stripHtml(value) {
@@ -565,10 +685,118 @@ function stripHtml(value) {
   return tmp.textContent || tmp.innerText || "";
 }
 
+function shuffleInPlace(items) {
+  const arr = items;
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Lightweight “connect the facts” UI: two columns, tap clue then matching answer.
+ * Not fancy ML—just DOM and state—but it feels like a real checkpoint reward.
+ */
+function openCheckpointQuiz() {
+  const target = getTreasureById(state.selectedTreasureId);
+  if (!target?.miniGamePairs?.length) return;
+
+  const photoCount = state.memoryPhotos.length;
+  if (photoCount < MIN_MEMORY_PHOTOS || photoCount > MAX_MEMORY_PHOTOS) {
+    return;
+  }
+
+  ui.quizModalSubtitle.textContent = target.name;
+  ui.quizFeedback.textContent = "";
+  ui.quizFeedback.classList.remove("success");
+
+  const pairs = target.miniGamePairs.map((p) => ({ ...p }));
+  const leftOrder = shuffleInPlace([...pairs]);
+  const rightOrder = shuffleInPlace([...pairs]);
+
+  const matched = new Set();
+  let activePairId = null;
+
+  const clearSelection = () => {
+    activePairId = null;
+    ui.quizClues.querySelectorAll(".match-card").forEach((el) => el.classList.remove("selected"));
+  };
+
+  const renderColumn = (container, side) => {
+    container.innerHTML = "";
+    const order = side === "clue" ? leftOrder : rightOrder;
+    order.forEach((pair) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "match-card";
+      btn.dataset.pairId = pair.id;
+      btn.textContent = side === "clue" ? pair.clue : pair.match;
+      btn.addEventListener("click", () => {
+        if (matched.has(pair.id)) return;
+
+        if (side === "clue") {
+          clearSelection();
+          activePairId = pair.id;
+          btn.classList.add("selected");
+          return;
+        }
+
+        // Matching side
+        if (!activePairId) {
+          ui.quizFeedback.textContent = "Pick a clue on the left first.";
+          ui.quizFeedback.classList.remove("success");
+          return;
+        }
+
+        if (pair.id === activePairId) {
+          matched.add(pair.id);
+          clearSelection();
+          ui.quizClues.querySelectorAll(`[data-pair-id="${pair.id}"]`).forEach((el) => {
+            el.classList.add("matched");
+            el.disabled = true;
+          });
+          ui.quizMatches.querySelectorAll(`[data-pair-id="${pair.id}"]`).forEach((el) => {
+            el.classList.add("matched");
+            el.disabled = true;
+          });
+
+          if (matched.size === pairs.length) {
+            state.checkpointQuizPassed = true;
+            ui.quizFeedback.textContent = "Checkpoint cleared — you can collect the treasure!";
+            ui.quizFeedback.classList.add("success");
+            updateCollectAvailability();
+            window.setTimeout(() => {
+              ui.quizModal.classList.add("hidden");
+            }, 900);
+          } else {
+            ui.quizFeedback.textContent = "Nice — keep pairing the rest.";
+            ui.quizFeedback.classList.remove("success");
+          }
+        } else {
+          ui.quizFeedback.textContent = "Not quite — try another match.";
+          ui.quizFeedback.classList.remove("success");
+          btn.classList.add("wrong");
+          window.setTimeout(() => btn.classList.remove("wrong"), 450);
+        }
+      });
+      container.appendChild(btn);
+    });
+  };
+
+  renderColumn(ui.quizClues, "clue");
+  renderColumn(ui.quizMatches, "match");
+  ui.quizModal.classList.remove("hidden");
+}
+
 function collectTreasure() {
   const target = getTreasureById(state.selectedTreasureId);
   if (!target || state.collected.includes(target.id)) return;
   if (state.lastDistanceMeters === null || state.lastDistanceMeters > COLLECTION_RADIUS_METERS) return;
+  const photosOk =
+    state.memoryPhotos.length >= MIN_MEMORY_PHOTOS &&
+    state.memoryPhotos.length <= MAX_MEMORY_PHOTOS;
+  if (!photosOk || !state.checkpointQuizPassed) return;
 
   state.collected.push(target.id);
   state.score += target.points;
@@ -602,6 +830,7 @@ function collectTreasure() {
 }
 
 function startNextHunt() {
+  resetCheckpointState();
   const nextTreasure = TREASURES.find((treasure) => !state.collected.includes(treasure.id));
   if (!nextTreasure) {
     ui.proximityStatus.textContent = "All treasures collected - hunt complete!";
@@ -811,4 +1040,6 @@ window.initTreasureApp = function initTreasureApp() {
   if (state.activeScreen === "hunt" && state.selectedTreasureId) {
     startGeoWatch();
   }
+  updateMemoryStatus();
+  updateCollectAvailability();
 };
